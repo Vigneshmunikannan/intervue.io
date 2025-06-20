@@ -1,4 +1,4 @@
-// --- teacher.js ---
+// --- Enhanced teacher.js with Activity Tracking ---
 const Poll = require('../models/Poll');
 const Answer = require('../models/Answer');
 const Question = require('../models/Question');
@@ -40,15 +40,27 @@ async function createPollForTeacher(io, state, pollData) {
     console.log(state.waitingStudents.size, "students waiting for question");
     if (state.activePoll) {
         console.log("Poll already active, cannot create a new one.");
+
         if (state.teacherSocket) {
             const isFirst = !state.activePoll.questions || state.activePoll.questions.length === 0;
+
+            // Update teacher activity
+            state.updateTeacherActivity('POLL_ALREADY_ACTIVE', {
+                pollStatus: 'active',
+                questionsCount: state.activePoll.questions?.length || 0,
+                isFirstQuestion: isFirst
+            });
+
             state.teacherSocket.emit("message", JSON.stringify({
                 type: "POLL_ALREADY_ACTIVE",
                 payload: {
-                    first: isFirst
+                    first: isFirst,
+                    studentsCount: state.connectedStudents.size,
+                    waitingCount: state.waitingStudents.size
                 }
             }));
         }
+
         return;
     }
 
@@ -64,24 +76,33 @@ async function createPollForTeacher(io, state, pollData) {
     console.log(`[POLL SAVED] ${poll._id} by ${state.teacherName}`);
     console.log(`[POLL CREATED] ${poll._id} by ${state.teacherName}`);
 
+
     if (state.teacherSocket) {
         state.teacherSocket.emit("message", JSON.stringify({
             type: "POLL_CREATED",
-            payload: { pollId: poll._id, first: true }
+            payload: { 
+                pollId: poll._id, 
+                first: true,
+                studentsCount: state.connectedStudents.size,
+                waitingCount: state.waitingStudents.size
+            }
         }));
     }
 }
 
 async function setupTeacherSocket(io, socket, state) {
-    console.log(state.connectedStudents)
+    console.log(state.connectedStudents);
 
     socket.on("ask-new-question", () => {
         const isFirst = (state.activePoll.questions?.length ?? 0) === 0;
+
         if (state.teacherSocket && state.teacherSocket.connected) {
             state.teacherSocket.emit("message", JSON.stringify({
                 type: "POLL_ALREADY_ACTIVE",
                 payload: {
-                    first: isFirst
+                    first: isFirst,
+                    studentsCount: state.connectedStudents.size,
+                    waitingCount: state.waitingStudents.size
                 }
             }));
         }
@@ -89,8 +110,10 @@ async function setupTeacherSocket(io, socket, state) {
 
     socket.on("view-history", async () => {
         try {
+
             if (!state.activePoll || !state.activePoll._id) {
                 await terminateSessionAndCleanup(state, socket, io);
+                return;
             }
 
             // Fetch all questions for the current poll
@@ -129,6 +152,13 @@ async function setupTeacherSocket(io, socket, state) {
                 });
             }
 
+            // Store history in teacher state
+            state.updateTeacherActivity('HISTORY_VIEWED', {
+                questionStatus: 'history_displayed',
+                historyData: history,
+                totalQuestions: history.length
+            });
+
             socket.emit("message", JSON.stringify({
                 type: "HISTORY_RESULT",
                 payload: {
@@ -136,12 +166,13 @@ async function setupTeacherSocket(io, socket, state) {
                 }
             }));
         } catch (err) {
-           await terminateSessionAndCleanup(state, socket, io);
+            await terminateSessionAndCleanup(state, socket, io);
         }
     });
 
     // Helper function to terminate all students and cleanup state
     async function terminateSessionAndCleanup(state, socket, io) {
+
         // Notify and disconnect all connected students
         state.connectedStudents.forEach((studentObj, sid) => {
             const studentSocket = studentObj.socket;
@@ -194,6 +225,7 @@ async function setupTeacherSocket(io, socket, state) {
     }
 
     socket.on("stop-test", async () => {
+
         // Notify and disconnect all connected students
         state.connectedStudents.forEach((studentObj, sid) => {
             const studentSocket = studentObj.socket;
@@ -245,14 +277,13 @@ async function setupTeacherSocket(io, socket, state) {
         console.log("[STOP TEST] All student sessions terminated, state cleared, and poll ended.");
     });
 
-
-
     socket.on("add-question", async (data) => {
-        console.log(state)
+        console.log(state);
         if (state.activePoll) {
             console.log("Adding question to active poll:", state.activePoll._id);
             try {
                 if (state.connectedStudents.size === 0) {
+
                     socket.emit("message", JSON.stringify({
                         type: "NO_STUDENTS_CONNECTED",
                         payload: {
@@ -262,6 +293,7 @@ async function setupTeacherSocket(io, socket, state) {
                     }));
                     return; // Exit early
                 }
+
                 // Calculate question number (1-based)
                 const questionNumber = (state.activePoll.questions?.length || 0) + 1;
 
@@ -272,7 +304,7 @@ async function setupTeacherSocket(io, socket, state) {
                     options: data.options,
                     duration: data.duration,
                     status: 'active',
-                    questionNumber: questionNumber // Add question number to DB
+                    questionNumber: questionNumber
                 });
 
                 await question.save();
@@ -282,10 +314,24 @@ async function setupTeacherSocket(io, socket, state) {
                 state.questionStartTime = new Date();
                 state.studentAnswers.clear(); // Clear previous answers
 
+                // Update teacher activity with detailed question data
+                state.updateTeacherActivity('QUESTION_ACTIVE', {
+                    questionStatus: 'active',
+                    currentQuestionData: {
+                        id: question._id,
+                        questionNumber: questionNumber,
+                        questionText: question.questionText,
+                        options: question.options,
+                        duration: question.duration,
+                        startTime: state.questionStartTime
+                    }
+                });
+
                 // 3. Add to in-memory poll state
                 state.activePoll.questions = state.activePoll.questions || [];
                 state.activePoll.questions.push(question);
                 await state.activePoll.save();
+                
                 for (const [sid, studentObj] of state.connectedStudents.entries()) {
                     const studentSocket = studentObj.socket;
                     if (studentSocket && typeof studentSocket.emit === "function") {
@@ -307,9 +353,6 @@ async function setupTeacherSocket(io, socket, state) {
                     state.waitingStudents.delete(sid);
                 }
 
-
-
-
                 // 5. Start countdown timer for both teacher and students
                 startQuestionTimer(question.duration, state, io);
 
@@ -319,7 +362,7 @@ async function setupTeacherSocket(io, socket, state) {
                     payload: {
                         question: data.text,
                         questionId: question._id,
-                        questionNumber: questionNumber, // Include question number
+                        questionNumber: questionNumber,
                         duration: question.duration,
                         studentsCount: state.connectedStudents.size,
                         status: `Question ${questionNumber} successfully added and broadcasted to students`
@@ -331,7 +374,7 @@ async function setupTeacherSocket(io, socket, state) {
                     type: "QUESTION_LIVE",
                     payload: {
                         questionId: question._id,
-                        questionNumber: questionNumber, // Include question number
+                        questionNumber: questionNumber,
                         message: `Question ${questionNumber} is now live for students`,
                         startTime: state.questionStartTime,
                         duration: question.duration
@@ -340,6 +383,7 @@ async function setupTeacherSocket(io, socket, state) {
 
             } catch (err) {
                 console.error('Error adding question:', err);
+
                 socket.emit("message", JSON.stringify({
                     type: "QUESTION_ADD_ERROR",
                     payload: "Failed to save question: " + err.message
@@ -352,7 +396,6 @@ async function setupTeacherSocket(io, socket, state) {
             }));
         }
     });
-
 }
 
 // Timer function for question duration with real-time updates to both teacher and students
@@ -367,20 +410,22 @@ function startQuestionTimer(duration, state, io) {
     const questionNumber = state.activeQuestion.questionNumber;
 
     const broadcastTimer = () => {
+        const timerData = {
+            questionId,
+            questionNumber,
+            remainingTime,
+            totalTime: duration,
+            totalResponses: state.studentAnswers.size,
+            totalStudents: state.connectedStudents.size,
+            responseRate:
+                state.connectedStudents.size > 0
+                    ? Math.round((state.studentAnswers.size / state.connectedStudents.size) * 100)
+                    : 0,
+        };
+
         const payload = {
             type: "QUESTION_TIMER_UPDATE",
-            payload: {
-                questionId,
-                questionNumber,
-                remainingTime,
-                totalTime: duration,
-                totalResponses: state.studentAnswers.size,
-                totalStudents: state.connectedStudents.size,
-                responseRate:
-                    state.connectedStudents.size > 0
-                        ? Math.round((state.studentAnswers.size / state.connectedStudents.size) * 100)
-                        : 0,
-            },
+            payload: timerData,
         };
 
         if (state.teacherSocket) {
@@ -399,6 +444,14 @@ function startQuestionTimer(duration, state, io) {
         const allAnswered = state.studentAnswers.size >= state.connectedStudents.size;
         if (allAnswered) {
             clearInterval(state.questionTimer);
+            
+            // // Update teacher activity for early end
+            // state.updateTeacherActivity('QUESTION_ENDED_EARLY', {
+            //     reason: 'All students answered',
+            //     questionId: state.activeQuestion._id,
+            //     questionNumber: state.activeQuestion.questionNumber
+            // });
+
             await endCurrentQuestion(state);
         }
     };
@@ -413,11 +466,11 @@ function startQuestionTimer(duration, state, io) {
 
         if (remainingTime <= 0) {
             clearInterval(state.questionTimer);
+
             await endCurrentQuestion(state);
         }
     }, 1000);
 }
-
 
 
 

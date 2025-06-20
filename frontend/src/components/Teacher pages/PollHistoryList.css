@@ -1,0 +1,135 @@
+.poll-history-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(30, 30, 30, 0.18);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 60px;
+}
+.question-bg {
+  background: linear-gradient(to left, #6e6e6e, #343434);
+}
+.poll-header {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 12px 12px 0 0;
+  padding: 24px 32px 16px 32px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+  margin-left: 12px;
+}
+
+.poll-list {
+  width: 100%;
+  max-width: 665px;
+  min-height: 180px; /* Ensures white area even if no polls */
+  max-height: 60vh; /* Prevents it from being too tall */
+  background: #fff;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  padding: 0 0 24px 0;
+  margin: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.poll-item {
+  padding: 18px 32px;
+  border-bottom: 1px solid #ececec;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.poll-item:last-child {
+  border-bottom: none;
+}
+
+.poll-item:hover {
+  background: #f5f5fa;
+}
+
+.poll-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.poll-date {
+  font-size: 14px;
+  color: #888;
+  margin-top: 4px;
+}
+
+.gray-text {
+  color: #444; /* Darker gray for visibility */
+  margin: 32px 0;
+  font-size: 18px;
+  text-align: center;
+  background: #fff; /* Ensures text is on white */
+  border-radius: 0 0 12px 12px;
+  padding: 40px 0;
+}
+
+.poll-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 60px;
+}
+
+.poll-popup {
+  background: white;
+  width: 90%;
+  max-width: 600px;
+  min-height: 300px;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  padding: 32px;
+  position: relative;
+  overflow-y: auto;
+}
+
+.poll-popup h2 {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+
+.poll-popup p {
+  font-size: 18px;
+  margin: 10px 0;
+}
+
+.popup-close {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+}

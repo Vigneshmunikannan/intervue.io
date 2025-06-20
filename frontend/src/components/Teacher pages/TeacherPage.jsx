@@ -8,6 +8,7 @@ import History from "./History";
 import ResultPage from "./ResultPage";
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:4000";
 const TEACHER_SESSION_KEY = "teacherSessionId";
+import PollHistoryList from "./PollHistoryList";
 
 const TeacherPage = ({ name, setName, role, setRole }) => {
     const [status, setStatus] = useState("initial");
@@ -16,9 +17,16 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
     const [typingName, setTypingName] = useState("");
     const [firstQuestion, setFirstQuestion] = useState(false);
     const [sessionrestore, SetSessionRestore] = useState(false);
+    const [showPollHistory, setShowPollHistory] = useState(false);
+
     const [questiondata, setQuestionData] = useState(null);
     function handleChange(e) {
         setTypingName(e.target.value);
+        setShowPollHistory(setShowPollHistory(false))
+        if (typingName.length === 0) {
+            setShowPollHistory(false)
+        }
+        console.log("typingName", typingName);
     }
     function handleContinue() {
         if (!typingName) {
@@ -92,6 +100,7 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
                     break;
 
                 case "QUESTION_ADDED":
+                case "QUESTION_LIVE":
                     setQuestionData(msg.payload);
                     setFirstQuestion(false);
                     setStatus("questions_added");
@@ -113,16 +122,16 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
                     setStatus("not_allowed");
                     setError(msg.payload?.reason || "Session terminated");
                     break;
-                
+
                 case "HISTORY_RESULT":
                     setStatus("view_history");
                     setQuestionData(msg.payload);
                     setFirstQuestion(false);
-                    break; 
+                    break;
                 case "HISTORY_ERROR":
                     setStatus("not_allowed");
                     setError(msg.payload?.message || "Failed to fetch history because of  error test got completed ");
-                    break;   
+                    break;
 
                 case "ERROR":
                     setStatus("not_allowed");
@@ -146,6 +155,18 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
     if (!name) {
         return (
             <div className="min-h-screen flex flex-col justify-center items-center px-4 bg-white">
+                {showPollHistory && <PollHistoryList onClose={() => setShowPollHistory(false)} />}
+                <div className="absolute top-[40px] right-[300px] z-[40]">
+                    <button
+                        onClick={() => {
+                            setShowPollHistory(prev => !prev)
+                            console.log("showPollHistory", showPollHistory)
+                        }}
+                        className="bg-gradient-to-r from-[#8F64E1] to-[#1D68BD] text-white text-[18px] font-bold py-2 px-6 rounded-full w-[234px] h-[58px]  border-[0px] disabled:opacity-50  text-[#ffffff] cursor-pointer "
+                    >
+                        {"View Past Polls"}
+                    </button>
+                </div>
                 {/* Badge */}
                 <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-gradient-to-r from-[#7565D9] to-[#4D0ACD] text-white font-sora font-semibold text-sm h-[31px] w-[134px] mx-auto mb-3 text-[#ffffff]">
                     <div className="flex items-center ml-[10px]">
@@ -236,11 +257,14 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
         )
     }
 
-    if( status === "view_history") {
+    if (status === "view_history") {
         return (
             <History socket={socketRef.current} history={questiondata.questions} />
         )
     }
+
+
+
 
 
     // fallback

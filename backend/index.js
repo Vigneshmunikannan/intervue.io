@@ -3,8 +3,13 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const setupSocket = require("./sockets/socketManager");
+const pollRoutes = require("./routes/pollRoutes");
 require("dotenv").config();
 const connectDB = require('./config/db');
+
+
+
+
 
 const PORT = process.env.PORT || 4000;
 
@@ -15,6 +20,8 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
+
+app.use("/api/polls", pollRoutes);
 const io = new Server(server, {
   cors: {
     origin: "*",

@@ -20,12 +20,13 @@ async function createPollForTeacher(io, state, pollData) {
                     studentSessionId: studentObj.studentSessionId
                 }
             }));
+            console.log(studentObj)
 
             // Then add to connected students with all necessary properties
             state.connectedStudents.set(sid, {
                 socket: studentSocket,
                 socketId: sid,
-                originalName: studentObj.studentName,
+                originalName: studentObj.originalName,
                 studentSessionId: studentObj.studentSessionId,
                 joinedAt: new Date()
             });
@@ -80,8 +81,8 @@ async function createPollForTeacher(io, state, pollData) {
     if (state.teacherSocket) {
         state.teacherSocket.emit("message", JSON.stringify({
             type: "POLL_CREATED",
-            payload: { 
-                pollId: poll._id, 
+            payload: {
+                pollId: poll._id,
                 first: true,
                 studentsCount: state.connectedStudents.size,
                 waitingCount: state.waitingStudents.size
@@ -331,7 +332,7 @@ async function setupTeacherSocket(io, socket, state) {
                 state.activePoll.questions = state.activePoll.questions || [];
                 state.activePoll.questions.push(question);
                 await state.activePoll.save();
-                
+
                 for (const [sid, studentObj] of state.connectedStudents.entries()) {
                     const studentSocket = studentObj.socket;
                     if (studentSocket && typeof studentSocket.emit === "function") {
@@ -444,7 +445,7 @@ function startQuestionTimer(duration, state, io) {
         const allAnswered = state.studentAnswers.size >= state.connectedStudents.size;
         if (allAnswered) {
             clearInterval(state.questionTimer);
-            
+
             // // Update teacher activity for early end
             // state.updateTeacherActivity('QUESTION_ENDED_EARLY', {
             //     reason: 'All students answered',

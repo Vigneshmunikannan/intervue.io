@@ -117,9 +117,9 @@ const getStudentState = async (studentSessionId, state) => {
 
 module.exports = function (io, socket, state) {
     const { teacherSocket, connectedStudents, studentNames, waitingStudents } = state;
-    const studentName = socket.handshake.query.name;
+    const studentName = socket.handshake.query.name || "Unknown Student";
     let studentSessionId = socket.handshake.query.studentSessionId;
-
+    console.log(`Student connection attempt: ${studentName} - Session ID: ${studentSessionId}`);    
     console.log(`[STUDENT CONNECTED] ${studentName} - Socket: ${socket.id} - Session ID: ${studentSessionId}`);
 
     // Generate new session ID if needed

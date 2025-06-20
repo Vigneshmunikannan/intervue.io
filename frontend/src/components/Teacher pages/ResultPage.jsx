@@ -38,7 +38,7 @@ const handleStoptest = e => {
       }
 
       if (message.type === "QUESTION_TIMER_UPDATE") {
-        setResponses(message.payload.totalResponses)
+        setResponses(message.payload)
         setRemainingTime(message.payload.remainingTime);
       }
 
@@ -55,10 +55,12 @@ const handleStoptest = e => {
       }
 
     };
+    
 
     socket.on("message", handleMessage);
     return () => socket.off("message", handleMessage);
   }, [socket, questionText]);
+console.log("questiondata", responses);
 
   if (loading) {
     return (
@@ -67,8 +69,8 @@ const handleStoptest = e => {
           <h2>⏳ Waiting for Students' Responses...</h2>
           <div className="question-info">
             <p><strong>Question:</strong> {questiondata.questionNumber}. {questiondata?.question}</p>
-            <p><strong>Total Students:</strong> {questiondata.studentsCount}</p>
-            <p><strong>Current Response:</strong> {responses}</p>
+            <p><strong>Total Students:</strong> {responses.studentsCount}</p>
+            <p><strong>Current Response:</strong> {responses.totalResponses}</p>
             <p><strong>Time Remaining:</strong> {remainingTime} second{remainingTime !== 1 ? 's' : ''}</p>
           </div>
 

@@ -10,7 +10,7 @@ import ResultPage from "./Results";
 const STUDENT_SESSION_KEY = "studentSessionId";
 
 import WaitingScreen from "./FirstWait";
-import  Kickout from "./kickout";
+import Kickout from "./kickout";
 const StudentPage = ({ name, setName, role, setRole }) => {
 
     const [status, setStatus] = useState("initial");
@@ -29,18 +29,20 @@ const StudentPage = ({ name, setName, role, setRole }) => {
         setTypingName(e.target.value);
     }
     function handleContinue() {
-        if (!typingName) {
-            return
-        }
-        setName(typingName.trim())
+        if (!typingName) return;
+        sessionStorage.setItem("studentName", typingName.trim());
+        setName(typingName.trim());
     }
     useEffect(() => {
         if (!name) {
             const storedName = sessionStorage.getItem("studentName");
-            if (storedName) setName(storedName);
-            return;
+            if (storedName) {
+                setName(storedName);
+            }
         }
+    }, [name, setName]);
 
+    useEffect(() => {
         // --- Get or create studentSessionId ---
         let studentSessionId = sessionStorage.getItem(STUDENT_SESSION_KEY);
         // Don't generate here; let backend generate if missing
@@ -172,10 +174,9 @@ const StudentPage = ({ name, setName, role, setRole }) => {
 
     const handleNameSubmit = (e) => {
         e.preventDefault();
-        if (name.trim()) {
-            sessionStorage.setItem("studentName", name.trim());
-            // Don't reload, just trigger the useEffect
-            setName(name.trim());
+        if (typingName.trim()) {
+            sessionStorage.setItem("studentName", typingName.trim());
+            setName(typingName.trim());
         }
     };
 

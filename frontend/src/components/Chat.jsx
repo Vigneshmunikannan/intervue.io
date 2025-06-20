@@ -13,6 +13,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
     const inputRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
+    console.log(participants)
+
     // Auto scroll to bottom when new messages arrive
     useEffect(() => {
         if (isOpen && activeTab === 'Chat') {
@@ -41,7 +43,6 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
     useEffect(() => {
         if (!socket) return;
 
-        // Join chat when component mounts
         socket.emit('chat-join');
 
         // Receive chat history
@@ -49,8 +50,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
             setMessages(
                 (msgs || []).map(msg => ({
                     ...msg,
-                    id: msg.sentAt || Date.now() + Math.random(),
-                    isMe: msg.sender === name,
+                    id: msg.sentAt ? msg.sentAt + msg.sender : Date.now() + Math.random(),
+                    isMe: msg.sender === name && msg.role === role,
                 }))
             );
         };
@@ -61,8 +62,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                 ...prev,
                 {
                     ...msg,
-                    id: msg.sentAt || Date.now() + Math.random(),
-                    isMe: msg.sender === name,
+                    id: msg.sentAt ? msg.sentAt + msg.sender : Date.now() + Math.random(),
+                    isMe: msg.sender === name && msg.role === role,
                 }
             ]);
         };
@@ -130,7 +131,7 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
             socket.off('kick-success', handleKickSuccess);
             socket.off('user-typing', handleUserTyping);
         };
-    }, [socket, name]);
+    }, [socket, name, role]);
 
     // Handle typing indicator
     const handleInputChange = (e) => {
@@ -173,7 +174,7 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
         setMessage('');
     };
 
-    const kickParticipant = (socketId, participantName) => {
+    const kickParticipant = (socketId) => {
         if (!socket || role !== 'teacher') return;
         socket.emit('kick-student', { socketId });
     };
@@ -226,8 +227,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                         <div
                             key={error.id}
                             className={`px-[12px] py-[8px] rounded-[8px] text-[11px] font-medium max-w-[320px] ${error.type === 'success'
-                                    ? 'bg-[#D4EDDA] text-[#155724] border border-[#C3E6CB]'
-                                    : 'bg-[#F8D7DA] text-[#721C24] border border-[#F5C6CB]'
+                                ? 'bg-[#D4EDDA] text-[#155724] border border-[#C3E6CB]'
+                                : 'bg-[#F8D7DA] text-[#721C24] border border-[#F5C6CB]'
                                 }`}
                         >
                             {error.message}
@@ -247,8 +248,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                         <button
                             onClick={() => setActiveTab('Chat')}
                             className={`border-[0px] flex-1 px-[16px] py-[12px] text-[14px] font-medium rounded-tl-[12px] transition-colors ${activeTab === 'Chat'
-                                    ? 'text-[#8F64E1] bg-[#F8F6FF]'
-                                    : 'text-[#6E6E6E] hover:text-[#8F64E1] hover:bg-[#FAFAFA]'
+                                ? 'text-[#8F64E1] bg-[#F8F6FF]'
+                                : 'text-[#6E6E6E] hover:text-[#8F64E1] hover:bg-[#FAFAFA]'
                                 }`}
                         >
                             Chat
@@ -261,8 +262,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                         <button
                             onClick={() => setActiveTab('Participants')}
                             className={`border-[0px] flex-1 px-[16px] py-[12px] text-[14px] font-medium rounded-tr-[12px] transition-colors ${activeTab === 'Participants'
-                                    ? 'text-[#8F64E1] bg-[#F8F6FF]'
-                                    : 'text-[#6E6E6E] hover:text-[#8F64E1] hover:bg-[#FAFAFA]'
+                                ? 'text-[#8F64E1] bg-[#F8F6FF]'
+                                : 'text-[#6E6E6E] hover:text-[#8F64E1] hover:bg-[#FAFAFA]'
                                 }`}
                         >
                             Participants
@@ -279,7 +280,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                         {activeTab === 'Chat' ? (
                             <>
                                 {/* Messages */}
-                                <div className="flex-1 overflow-y-auto px-[16px] py-[12px] space-y-[8px] scrollbar-thin scrollbar-thumb-[#E0E0E0] scrollbar-track-transparent">
+                                <div className="flex-1 overflow-y-auto px-[16px] py-[12px] space-y-[8px] scrollbar-thin scrollbar-thumb-[#E0E0E0] scrollbar-track-transparent"
+                                    style={{ maxHeight: 340, minHeight: 0 }}>
                                     {messages.length === 0 ? (
                                         <div className="text-center text-[#6E6E6E] text-[12px] mt-[20px]">
                                             <div className="mb-[8px]">💬</div>
@@ -305,10 +307,10 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                                                     )}
                                                     <div
                                                         className={`px-[12px] py-[8px] rounded-[16px] text-[12px] shadow-sm ${msg.isMe
-                                                                ? 'bg-[#8F64E1] text-white rounded-br-[4px]'
-                                                                : msg.role === 'teacher'
-                                                                    ? 'bg-[#FFF5F5] text-[#000000] border border-[#FFCCCC] rounded-bl-[4px]'
-                                                                    : 'bg-[#F2F2F2] text-[#000000] rounded-bl-[4px]'
+                                                            ? 'bg-[#8F64E1] text-white rounded-br-[4px]'
+                                                            : msg.role === 'teacher'
+                                                                ? 'bg-[#FFF5F5] text-[#000000] border border-[#FFCCCC] rounded-bl-[4px]'
+                                                                : 'bg-[#F2F2F2] text-[#000000] rounded-bl-[4px]'
                                                             }`}
                                                     >
                                                         {msg.text}
@@ -359,7 +361,8 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                             </>
                         ) : (
                             /* Participants */
-                            <div className="flex-1 overflow-y-auto">
+                            <div className="flex-1 overflow-y-auto"
+                                style={{ maxHeight: 390, minHeight: 0 }}>
                                 <div className="px-[16px] py-[12px]">
                                     <div className="flex justify-between items-center mb-[12px] pb-[8px] border-b border-[#F0F0F0]">
                                         <div className="text-[12px] font-medium text-[#6E6E6E]">
@@ -401,7 +404,7 @@ const ChatToggle = ({ name, role, socket, isVisible = true }) => {
                                                     </div>
                                                     {role === 'teacher' && participant.role !== 'teacher' && participant.name !== name && (
                                                         <button
-                                                            onClick={() => kickParticipant(participant.socketId, participant.name)}
+                                                            onClick={() => kickParticipant(participant.socketId)}
                                                             className="text-[11px] text-[#E74C3C] hover:text-[#C0392B] hover:bg-[#FFF5F5] px-[8px] py-[4px] rounded-[4px] transition-colors border border-transparent hover:border-[#FFCCCC]"
                                                         >
                                                             Kick out

@@ -5,7 +5,7 @@ const pollController = require("../Controllers/pollController");
 const { getPollResultsById ,getChatsByPollId} = require('../Controllers/pollController');
 
 // GET /api/polls
-router.get("/", pollController.getAllPolls);
+router.get("/", pollController.getEndedPolls);
 
 router.get('/:id/results', getPollResultsById);
 router.get('/chats/poll/:pollId', getChatsByPollId);

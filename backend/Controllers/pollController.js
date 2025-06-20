@@ -3,15 +3,17 @@ const Poll = require('../models/Poll');
 const Question = require('../models/Question');
 const Answer = require('../models/Answer');
 const Chat = require('../models/Chat');
-exports.getAllPolls = async (req, res) => {
+
+exports.getEndedPolls = async (req, res) => {
     try {
-        const polls = await Poll.find().sort({ createdAt: -1 });
-        res.json(polls);
+        const endedPolls = await Poll.find({ status: 'ended' }).sort({ endedAt: -1 });
+        res.json(endedPolls);
     } catch (error) {
-        console.error("Error fetching polls:", error);
-        res.status(500).json({ message: "Failed to fetch polls." });
+        console.error("Error fetching ended polls:", error);
+        res.status(500).json({ message: "Failed to fetch ended polls." });
     }
 };
+
 
 exports.getPollResultsById = async (req, res) => {
   try {

@@ -31,6 +31,43 @@ module.exports = function setupChatSocket(io, socket, state) {
     return participants;
   }
 
+  // Helper function to get student name with fallback logic (same as chat)
+  function getStudentName(studentObj, socketId) {
+    // Try originalName first
+    if (studentObj.originalName) {
+      return studentObj.originalName;
+    }
+    
+    // Try other name properties
+    if (studentObj.name) {
+      return studentObj.name;
+    }
+    
+    if (studentObj.studentName) {
+      return studentObj.studentName;
+    }
+    
+    // Try to get from state.studentNames if it exists
+    if (state.studentNames && state.studentNames.has(socketId)) {
+      return state.studentNames.get(socketId);
+    }
+    
+    // Try handshake query - find the socket first
+    let targetSocket = null;
+    if (studentObj.socket) {
+      targetSocket = studentObj.socket;
+    } else {
+      // Try to find socket in io.sockets
+      targetSocket = io.sockets.sockets.get(socketId);
+    }
+    
+    if (targetSocket && targetSocket.handshake && targetSocket.handshake.query && targetSocket.handshake.query.name) {
+      return targetSocket.handshake.query.name;
+    }
+    
+    return "Unknown Student";
+  }
+
   // Only allow chat if poll is active
   function isChatAllowed() {
     return !!state.activePoll;
@@ -95,38 +132,25 @@ module.exports = function setupChatSocket(io, socket, state) {
 
   // Handle chat message
   socket.on("chat-message", async (msg) => {
-    if (!isChatAllowed()) {
-      socket.emit("chat-error", { message: "Chat is not available. No active poll." });
-      return;
+    if (!isChatAllowed()) return;
+
+    let senderInfo;
+    if (state.teacherSocket && socket.id === state.teacherSocket.id) {
+      senderInfo = { name: state.teacherName, role: "teacher" };
+    } else {
+      senderInfo = state.connectedStudents.get(socket.id)
+        || state.waitingStudents.get(socket.id)
+        || {};
     }
 
-    // Input validation
-    if (!msg?.text || typeof msg.text !== 'string' || msg.text.trim().length === 0) {
-      socket.emit("chat-error", { message: "Invalid message format" });
-      return;
+    // Fallback to handshake query if name is missing
+    let senderName = senderInfo.originalName || senderInfo.name;
+    if (!senderName && socket.handshake && socket.handshake.query && socket.handshake.query.name) {
+      senderName = socket.handshake.query.name;
     }
+    if (!senderName) senderName = "Unknown";
 
-    // Prevent overly long messages
-    if (msg.text.length > 1000) {
-      socket.emit("chat-error", { message: "Message too long. Maximum 1000 characters." });
-      return;
-    }
-
-    const senderInfo =
-      (state.teacherSocket && socket.id === state.teacherSocket.id)
-        ? { name: state.teacherName, role: "teacher" }
-        : (
-          state.connectedStudents.get(socket.id) ||
-          state.waitingStudents.get(socket.id)
-        );
-
-    if (!senderInfo) {
-      socket.emit("chat-error", { message: "Unauthorized to send messages" });
-      return;
-    }
-
-    const senderName = senderInfo.originalName || senderInfo.name || "Unknown";
-    const role = senderInfo.role || "student";
+    const role = senderInfo.role || (socket.handshake.query && socket.handshake.query.role) || "student";
 
     // Save to DB
     try {
@@ -134,22 +158,18 @@ module.exports = function setupChatSocket(io, socket, state) {
         pollId: state.activePoll._id,
         senderName,
         role,
-        message: msg.text.trim(),
-        sentAt: new Date(),
-        socketId: socket.id
+        message: msg.text,
+        sentAt: new Date()
       });
     } catch (err) {
       console.error("Failed to save chat message:", err);
-      socket.emit("chat-error", { message: "Failed to send message" });
-      return;
     }
 
     const chatMsg = {
       sender: senderName,
-      text: msg.text.trim(),
+      text: msg.text,
       role,
-      sentAt: new Date(),
-      socketId: socket.id
+      sentAt: new Date()
     };
 
     broadcastChatMessage(chatMsg);
@@ -176,7 +196,9 @@ module.exports = function setupChatSocket(io, socket, state) {
 
     if (state.connectedStudents.has(socketId)) {
       const studentObj = state.connectedStudents.get(socketId);
-      kickedName = studentObj.originalName;
+      // Use the helper function with fallback logic
+      kickedName = getStudentName(studentObj, socketId);
+      
       if (studentObj.socket && typeof studentObj.socket.emit === "function") {
         studentObj.socket.emit("message", {
           type: "KICKED",
@@ -190,9 +212,14 @@ module.exports = function setupChatSocket(io, socket, state) {
       }
       state.connectedStudents.delete(socketId);
       kicked = true;
+      
+      console.log(`[KICK] Found student in connectedStudents: ${kickedName} (${socketId})`);
+      
     } else if (state.waitingStudents.has(socketId)) {
       const studentObj = state.waitingStudents.get(socketId);
-      kickedName = studentObj.originalName;
+      // Use the helper function with fallback logic
+      kickedName = getStudentName(studentObj, socketId);
+      
       if (studentObj.socket && typeof studentObj.socket.emit === "function") {
         studentObj.socket.emit("message", {
           type: "KICKED",
@@ -206,6 +233,12 @@ module.exports = function setupChatSocket(io, socket, state) {
       }
       state.waitingStudents.delete(socketId);
       kicked = true;
+      
+      console.log(`[KICK] Found student in waitingStudents: ${kickedName} (${socketId})`);
+    } else {
+      console.log(`[KICK] Student not found in either connectedStudents or waitingStudents: ${socketId}`);
+      console.log(`Connected students:`, Array.from(state.connectedStudents.keys()));
+      console.log(`Waiting students:`, Array.from(state.waitingStudents.keys()));
     }
 
     if (kicked && kickedName) {
@@ -222,8 +255,12 @@ module.exports = function setupChatSocket(io, socket, state) {
       socket.emit("kick-success", {
         message: `${kickedName} has been kicked out successfully.`
       });
+      
+      console.log(`[KICK SUCCESS] ${kickedName} has been kicked out successfully.`);
     } else {
-      socket.emit("chat-error", { message: "Student not found or already disconnected" });
+      const errorMsg = kicked ? "Student name could not be determined" : "Student not found or already disconnected";
+      socket.emit("chat-error", { message: errorMsg });
+      console.log(`[KICK FAILED] ${errorMsg} for socketId: ${socketId}`);
     }
   });
 

@@ -71,7 +71,7 @@ const getStudentState = async (studentSessionId, state) => {
             // Check if question is still active (within duration)
             const currentTime = Date.now();
             const questionEndTime = state.questionStartTime + (question.duration * 1000);
-            
+
             if (currentTime < questionEndTime) {
                 // Question is still active, send current question
                 return {
@@ -115,6 +115,36 @@ const getStudentState = async (studentSessionId, state) => {
     };
 };
 
+// Helper to broadcast participants
+function broadcastParticipants(state, io) {
+    const participants = [];
+    if (state.teacherSocket && state.teacherSocket.connected) {
+        participants.push({
+            name: state.teacherName,
+            role: 'teacher',
+            socketId: state.teacherSocket.id,
+            status: 'online'
+        });
+    }
+    state.connectedStudents.forEach((studentObj, sid) => {
+        participants.push({
+            name: studentObj.originalName,
+            role: 'student',
+            socketId: sid,
+            status: 'connected'
+        });
+    });
+    state.waitingStudents.forEach((studentObj, sid) => {
+        participants.push({
+            name: studentObj.originalName,
+            role: 'student',
+            socketId: sid,
+            status: 'waiting'
+        });
+    });
+    io.emit("participants-update", participants);
+}
+
 module.exports = function (io, socket, state) {
     const { teacherSocket, connectedStudents, studentNames, waitingStudents } = state;
     const studentName = socket.handshake.query.name;
@@ -133,11 +163,11 @@ module.exports = function (io, socket, state) {
         try {
             // Check if this is a reconnection of existing session
             const existingSession = findStudentSession(studentSessionId, state);
-            
+
             if (existingSession) {
                 // This is a reconnection - ALWAYS ALLOW reconnections
                 console.log(`[RECONNECTION] ${studentName} - SessionID: ${studentSessionId} - Location: ${existingSession.location}`);
-                
+
                 // Remove old socket connection
                 if (existingSession.location === 'connected') {
                     connectedStudents.delete(existingSession.socketId);
@@ -162,7 +192,7 @@ module.exports = function (io, socket, state) {
                 // Determine and send appropriate state
                 const studentState = await getStudentState(studentSessionId, state);
                 studentState.payload.originalName = studentName; // Ensure correct name
-                
+
                 socket.emit("message", JSON.stringify(studentState));
                 return;
             }
@@ -171,7 +201,7 @@ module.exports = function (io, socket, state) {
             // Block NEW students if:
             // 1. Poll is currently active, OR
             // 2. Poll exists and has questions (even if inactive)
-            
+
             if (state.activePoll && state.activePoll.questions && state.activePoll.questions.length > 0) {
                 console.log(`[NEW STUDENT REJECTED] ${studentName} - SessionID: ${studentSessionId} - Poll exists with questions`);
                 socket.emit("message", JSON.stringify({
@@ -206,14 +236,14 @@ module.exports = function (io, socket, state) {
             if (!teacherSocket || !teacherSocket.connected) {
                 // No teacher: add to waitingStudents
                 console.log(`[STUDENT WAITING] ${studentName} - No teacher connected`);
-                waitingStudents.set(socket.id, { 
-                    socket, 
+                waitingStudents.set(socket.id, {
+                    socket,
                     socketId: socket.id,
-                    originalName: studentName, 
+                    originalName: studentName,
                     studentSessionId,
                     joinedAt: new Date()
                 });
-                
+
                 socket.emit("message", JSON.stringify({
                     type: "NO_TEACHER",
                     payload: { studentSessionId }
@@ -238,8 +268,11 @@ module.exports = function (io, socket, state) {
             // Send appropriate state
             const studentState = await getStudentState(studentSessionId, state);
             studentState.payload.originalName = studentName;
-            
+
             socket.emit("message", JSON.stringify(studentState));
+
+            // Broadcast updated participants
+            broadcastParticipants(state, io);
 
         } catch (error) {
             console.error("Error handling student connection:", error);
@@ -359,5 +392,8 @@ module.exports = function (io, socket, state) {
         if (state.activeQuestion) {
             state.studentAnswers.delete(`${socket.id}-${state.activeQuestion._id}`);
         }
+
+        // Broadcast updated participants
+        broadcastParticipants(state, io);
     });
 };

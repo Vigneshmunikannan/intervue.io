@@ -9,6 +9,12 @@ const PollHistoryList = ({ onClose }) => {
     const [pollResults, setPollResults] = useState(null);
     const [resultsLoading, setResultsLoading] = useState(false);
     const [resultsError, setResultsError] = useState(null);
+    
+    // Chat states
+    const [selectedChatPoll, setSelectedChatPoll] = useState(null);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatError, setChatError] = useState(null);
 
     useEffect(() => {
         const fetchPolls = async () => {
@@ -29,6 +35,12 @@ const PollHistoryList = ({ onClose }) => {
         setSelectedPoll(null);
         setPollResults(null);
         setResultsError(null);
+    };
+
+    const closeChatPopup = () => {
+        setSelectedChatPoll(null);
+        setChatMessages([]);
+        setChatError(null);
     };
 
     // Helper for Indian time
@@ -54,6 +66,28 @@ const PollHistoryList = ({ onClose }) => {
         }
     };
 
+    // Fetch chat messages for a poll
+    const handleViewChat = async (poll, event) => {
+        event.stopPropagation(); // Prevent triggering poll click
+        setSelectedChatPoll(poll);
+        setChatMessages([]);
+        setChatError(null);
+        setChatLoading(true);
+        
+        try {
+            const res = await axios.get(
+                `${import.meta.env.VITE_SERVER_APIURL}/api/polls/chats/poll/${poll._id}`
+            );
+            console.log("Chat messages:", res.data);
+            setChatMessages(res.data);
+        } catch (err) {
+            console.error("Error fetching chat messages:", err);
+            setChatError("Failed to fetch chat messages.");
+        } finally {
+            setChatLoading(false);
+        }
+    };
+
     return (
         <div className="poll-history-container">
             <div className="poll-header">
@@ -69,12 +103,27 @@ const PollHistoryList = ({ onClose }) => {
                     polls.map((poll) => (
                         <div
                             key={poll._id}
-                            onClick={() => handlePollClick(poll)}
                             className="poll-item"
                         >
-                            <div className="poll-title">{poll.title}</div>
-                            <div className="poll-date">
-                                Created: {formatIndianTime(poll.createdAt)}
+                            <div onClick={() => handlePollClick(poll)} className="poll-item-content">
+                                <div className="poll-title">{poll.title}</div>
+                                <div className="poll-date">
+                                    Created: {formatIndianTime(poll.createdAt)}
+                                </div>
+                            </div>
+                            <div className="poll-item-actions">
+                                <button 
+                                    className="view-results-btn"
+                                    onClick={() => handlePollClick(poll)}
+                                >
+                                    View Results
+                                </button>
+                                <button 
+                                    className="view-chat-btn"
+                                    onClick={(e) => handleViewChat(poll, e)}
+                                >
+                                    View Chat
+                                </button>
                             </div>
                         </div>
                     ))
@@ -85,7 +134,7 @@ const PollHistoryList = ({ onClose }) => {
             {selectedPoll && (
                 <div className="poll-popup-overlay">
                     <div className="poll-popup" style={{ maxHeight: "80vh", overflowY: "auto" }}>
-                        <button className="popup-close" onClick={closePopup}>×</button>
+                        <button className="popup-close text-[#000000] w-[50px] h-[50px]" onClick={closePopup}>×</button>
                         <h2>{selectedPoll.title}</h2>
                         <p><strong>Teacher:</strong> {selectedPoll.teacherName}</p>
                         <p><strong>Status:</strong> {selectedPoll.status}</p>
@@ -166,6 +215,54 @@ const PollHistoryList = ({ onClose }) => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Chat Popup */}
+            {selectedChatPoll && (
+                <div className="poll-popup-overlay">
+                    <div className="chat-popup" style={{ maxHeight: "80vh", overflowY: "hidden" }}>
+                        <div className="chat-header">
+                            <h2>Chat - {selectedChatPoll.title}</h2>
+                            <button className="popup-close" onClick={closeChatPopup}>×</button>
+                        </div>
+                        
+                        <div className="chat-info">
+                            <p><strong>Teacher:</strong> {selectedChatPoll.teacherName}</p>
+                            <p><strong>Session:</strong> {formatIndianTime(selectedChatPoll.createdAt)}</p>
+                        </div>
+
+                        <div className="chat-messages-container">
+                            {chatLoading && <p className="loading-message">Loading chat messages...</p>}
+                            {chatError && <p className="error-message">{chatError}</p>}
+                            
+                            {!chatLoading && !chatError && (
+                                <div className="chat-messages">
+                                    {chatMessages.length === 0 ? (
+                                        <div className="no-messages">No chat messages found for this poll session.</div>
+                                    ) : (
+                                        chatMessages.map((message, index) => (
+                                            <div 
+                                                key={message._id || index} 
+                                                className={`chat-message ${message.role === 'teacher' ? 'teacher-message' : 'student-message'}`}
+                                            >
+                                                <div className="message-header">
+                                                    <span className="sender-name">{message.senderName}</span>
+                                                    <span className="sender-role">({message.role})</span>
+                                                    <span className="message-time">
+                                                        {formatIndianTime(message.sentAt)}
+                                                    </span>
+                                                </div>
+                                                <div className="message-content">
+                                                    {message.message}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

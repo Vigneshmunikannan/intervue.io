@@ -4,6 +4,36 @@ const { createPollForTeacher, setupTeacherSocket } = require('./teacher');
 const setupStudentSocket = require('./student');
 const setupChatSocket = require('./chat');
 
+// Helper to broadcast participants
+function broadcastParticipants(state, io) {
+    const participants = [];
+    if (state.teacherSocket && state.teacherSocket.connected) {
+        participants.push({
+            name: state.teacherName,
+            role: 'teacher',
+            socketId: state.teacherSocket.id,
+            status: 'online'
+        });
+    }
+    state.connectedStudents.forEach((studentObj, sid) => {
+        participants.push({
+            name: studentObj.originalName,
+            role: 'student',
+            socketId: sid,
+            status: 'connected'
+        });
+    });
+    state.waitingStudents.forEach((studentObj, sid) => {
+        participants.push({
+            name: studentObj.originalName,
+            role: 'student',
+            socketId: sid,
+            status: 'waiting'
+        });
+    });
+    io.emit("participants-update", participants);
+}
+
 module.exports = function setupSocket(io) {
     // --- SHARED STATE OBJECT ---
     const state = {
@@ -20,7 +50,7 @@ module.exports = function setupSocket(io) {
         teacherSessionId: null,
         studentAnswers: new Map(),
         lastTeacherActivity: null,
-        
+
         // New properties for tracking teacher activity state
         currentTeacherState: {
             lastActivity: '',
@@ -33,29 +63,29 @@ module.exports = function setupSocket(io) {
             timerData: null,
             lastResults: null
         },
-        
+
         setTeacherSocket(s) { this.teacherSocket = s; },
         setActivePoll(p) { this.activePoll = p; },
         setActiveQuestion(q) { this.activeQuestion = q; },
         setQuestionTimer(t) { this.questionTimer = t; },
-        
+
         // New method to update teacher activity
         updateTeacherActivity(activity, data = {}) {
             this.currentTeacherState.lastActivity = activity;
             this.currentTeacherState.lastActivityTime = new Date();
             this.currentTeacherState.studentsCount = this.connectedStudents.size;
             this.currentTeacherState.waitingStudentsCount = this.waitingStudents.size;
-            
+
             // Store activity-specific data
             if (data.pollStatus) this.currentTeacherState.pollStatus = data.pollStatus;
             if (data.questionStatus) this.currentTeacherState.questionStatus = data.questionStatus;
             if (data.currentQuestionData) this.currentTeacherState.currentQuestionData = data.currentQuestionData;
             if (data.timerData) this.currentTeacherState.timerData = data.timerData;
             if (data.lastResults) this.currentTeacherState.lastResults = data.lastResults;
-            
+
             console.log(`[TEACHER ACTIVITY] ${activity} at ${this.currentTeacherState.lastActivityTime}`);
         },
-        
+
         // Method to get current teacher state for reconnection
         getCurrentTeacherState() {
             return {
@@ -78,7 +108,7 @@ module.exports = function setupSocket(io) {
                 } : null
             };
         },
-        
+
         resetAll() {
             this.activePoll = null;
             this.activeQuestion = null;
@@ -105,7 +135,7 @@ module.exports = function setupSocket(io) {
     function emitTeacherStateRestoration(socket, state) {
         const currentState = state.getCurrentTeacherState();
         // Emit specific activity-based messages based on current state
-        console.log(currentState.lastActivity,"****************")
+        console.log(currentState.lastActivity, "****************")
 
         switch (currentState.lastActivity) {
             case 'POLL_CREATED':
@@ -189,6 +219,7 @@ module.exports = function setupSocket(io) {
 
                     // Set up teacher socket handlers
                     setupTeacherSocket(io, socket, state);
+                    broadcastParticipants(state, io); // <--- ADD THIS
                     return;
                 }
 
@@ -219,12 +250,13 @@ module.exports = function setupSocket(io) {
             const pollData = { title: `Teacher Poll ${Date.now()}` };
             createPollForTeacher(io, state, pollData);
             setupTeacherSocket(io, socket, state);
+            broadcastParticipants(state, io); // <--- ADD THIS
 
             // 3) On disconnect, start grace period cleanup
             socket.on("disconnect", () => {
                 console.log(`[DISCONNECT] Teacher ${name} - Socket: ${socket.id}`);
                 console.log("Starting teacher grace period timer...");
-                
+
 
                 state.teacherGraceTimeout = setTimeout(async () => {
                     console.log("Teacher grace period expired. Cleaning up state and disconnecting students.");
@@ -238,7 +270,7 @@ module.exports = function setupSocket(io) {
                             { new: true }
                         );
                     }
-                    
+
                     // Notify & kick all students
                     for (const [sid, student] of state.connectedStudents.entries()) {
                         io.to(sid).emit("message", JSON.stringify({
@@ -247,7 +279,7 @@ module.exports = function setupSocket(io) {
                         }));
                         io.sockets.sockets.get(sid)?.disconnect(true);
                     }
-                    
+
                     // Reset all state
                     state.teacherSocket = null;
                     state.teacherName = null;
@@ -265,7 +297,7 @@ module.exports = function setupSocket(io) {
                     console.log("Cleared all state after grace period expiration");
                 }, state.TEACHER_GRACE_PERIOD);
             });
-            
+
         } else if (role === "student") {
             setupStudentSocket(io, socket, state);
         }

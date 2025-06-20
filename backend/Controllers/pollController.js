@@ -2,7 +2,7 @@
 const Poll = require('../models/Poll');
 const Question = require('../models/Question');
 const Answer = require('../models/Answer');
-
+const Chat = require('../models/Chat');
 exports.getAllPolls = async (req, res) => {
     try {
         const polls = await Poll.find().sort({ createdAt: -1 });
@@ -67,5 +67,16 @@ exports.getPollResultsById = async (req, res) => {
   } catch (error) {
     console.error("Error fetching poll results:", error);
     res.status(500).json({ message: "Failed to fetch poll results." });
+  }
+};
+
+exports.getChatsByPollId = async (req, res) => {
+  try {
+    const { pollId } = req.params;
+    const chats = await Chat.find({ pollId }).sort({ sentAt: 1 }); // sorted oldest first
+    res.json(chats);
+  } catch (error) {
+    console.error('Error fetching chats:', error);
+    res.status(500).json({ message: 'Failed to fetch chats.' });
   }
 };

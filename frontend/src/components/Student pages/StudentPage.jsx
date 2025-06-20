@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-
+import ChatToggle from "../Chat";
 import Ended from "./Ended";
 import NoTeacherNotice from "./NoTeacherNotice";
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:4000';
@@ -10,9 +10,9 @@ import ResultPage from "./Results";
 const STUDENT_SESSION_KEY = "studentSessionId";
 
 import WaitingScreen from "./FirstWait";
-
+import  Kickout from "./kickout";
 const StudentPage = ({ name, setName, role, setRole }) => {
-    
+
     const [status, setStatus] = useState("initial");
     const [question, setQuestion] = useState(null);
     const [answered, setAnswered] = useState(false);
@@ -81,7 +81,7 @@ const StudentPage = ({ name, setName, role, setRole }) => {
                 case "NO_TEACHER":
                     setStatus("no_teacher");
                     break;
-                
+
                 case "WAITING_FOR_QUESTION1":
                     setStatus("waiting");
                     setAssignedName(message.payload.assignedName);
@@ -103,7 +103,7 @@ const StudentPage = ({ name, setName, role, setRole }) => {
                     setStatus("results");
                     clearTimer();
                     break;
-                
+
                 case "KICKED":
                     setStatus("kicked");
                     break;
@@ -111,10 +111,10 @@ const StudentPage = ({ name, setName, role, setRole }) => {
                 case "SESSION_TERMINATED":
                     setStatus("ended");
                     break;
-                
+
                 case "SESSION_DENIED":
                     setStatus("Participant Denied");
-                    break;    
+                    break;
                 case "WAITING_FOR_QUESTION":
                     setStatus("waiting");
                     setAssignedName(message.payload.assignedName);
@@ -284,12 +284,7 @@ const StudentPage = ({ name, setName, role, setRole }) => {
 
     if (status === "kicked") {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <p className="text-red-500 text-xl mb-4">Removed from Session</p>
-                    <p className="text-gray-600">You have been removed from the test by the teacher.</p>
-                </div>
-            </div>
+            <Kickout setRole={setRole} setName={setName} />
         );
     }
 
@@ -298,23 +293,40 @@ const StudentPage = ({ name, setName, role, setRole }) => {
             <Ended setRole={setRole} setName={setName} />
         );
     }
-    
+
     if (status === "test" && question) {
-    return (
-        <StudentQuestionComponent
-            question={question}
-            timeLeft={timeLeft}
-            answered={answered}
-            onSubmit={sendAnswer}
-            formatTime={formatTime}
-            socket={socketRef.current}
-        />
-    );
-}
+        return (
+            <div>
+                <ChatToggle
+                    name={name}
+                    role={role}
+                    socket={socketRef.current}
+                    isVisible={true}
+                />
+                <StudentQuestionComponent
+                    question={question}
+                    timeLeft={timeLeft}
+                    answered={answered}
+                    onSubmit={sendAnswer}
+                    formatTime={formatTime}
+                    socket={socketRef.current}
+                />
+            </div>
+
+        );
+    }
 
     // Results screen
     if (status === "results" && results) {
-        return <ResultPage status={status} results={results} socket={socketRef.current} />;
+        return <div>
+            <ChatToggle
+                name={name}
+                role={role}
+                socket={socketRef.current}
+                isVisible={true}
+            />
+            <ResultPage status={status} results={results} socket={socketRef.current} />;
+        </div>
     }
 
     return (

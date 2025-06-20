@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import AddQuestion from "./AddQuestion";
-
+import ChatToggle from "../Chat";
 import JoinErrorToast from "./NotAllowed";
 
 import History from "./History";
@@ -20,6 +20,9 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
     const [showPollHistory, setShowPollHistory] = useState(false);
 
     const [questiondata, setQuestionData] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [participants, setParticipants] = useState([]);
+
     function handleChange(e) {
         setTypingName(e.target.value);
         setShowPollHistory(setShowPollHistory(false))
@@ -151,6 +154,7 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
         };
     }, [name, role, setName]);
 
+
     // if we haven't got a name yet, show the entry form
     if (!name) {
         return (
@@ -240,6 +244,12 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
     if (status === "pollcreated") {
         return (
             <div className="p-4">
+                <ChatToggle
+                    name={name}
+                    role={role}
+                    socket={socketRef.current}
+                    isVisible={true}
+                />
                 <AddQuestion socket={socketRef.current} firstQuestion={firstQuestion} setFirstQuestion={setFirstQuestion} />
             </div>
         );
@@ -253,18 +263,31 @@ const TeacherPage = ({ name, setName, role, setRole }) => {
 
     if (status === "questions_added") {
         return (
-            <ResultPage socket={socketRef.current} questiondata={questiondata} />
+            <div>
+                <ChatToggle
+                    name={name}
+                    role={role}
+                    socket={socketRef.current}
+                    isVisible={true}
+                />
+                <ResultPage socket={socketRef.current} questiondata={questiondata} />
+            </div>
         )
     }
 
     if (status === "view_history") {
         return (
-            <History socket={socketRef.current} history={questiondata.questions} />
+            <div>
+                <ChatToggle
+                    name={name}
+                    role={role}
+                    socket={socketRef.current}
+                    isVisible={true}
+                />
+                <History socket={socketRef.current} history={questiondata.questions} />
+            </div>
         )
     }
-
-
-
 
 
     // fallback
